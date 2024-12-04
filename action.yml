@@ -1,0 +1,125 @@
+name: 'Build ESP32'
+description: 'Build micropython project for esp32'
+inputs:
+  idf-ref:
+    description: 'ESP-IDF ref for build'
+    required: true
+  mp-ref:
+    description: 'Micropython ref for build'
+    required: true
+  agroture-pat:
+    description: 'Agroture PAT'
+    required: true
+  source-dir:
+    description: 'Project source directory'
+    required: false
+    default: ""
+  output-path:
+    description: 'Bundle output path'
+    required: true
+  board:
+    description: 'Board'
+    required: true
+  board-variant:
+    description: 'Board variant'
+    required: true
+  cache-idf:
+    description: 'Control esp-idf cache'
+    required: false
+    default: 'true'
+  cache-micropython:
+    description: 'Control micropython cache'
+    required: false
+    default: 'true'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Restore cached ESP-IDF
+      if: inputs.cache-idf == 'true'
+      id: restore-cached-esp-idf
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ./esp-idf/
+          ~/.espressif/
+          !~/.espressif/dist/
+          ~/.cache/pip/
+        key: esp-idf-${{ inputs.idf-ref }}
+
+    - name: Clone ESP-IDF
+      if: inputs.cache-idf == 'false' || steps.restore-cached-esp-idf.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        repository: 'espressif/esp-idf'
+        ref: ${{ inputs.idf-ref }}
+        submodules: 'true'
+        path: 'esp-idf'
+
+    - name: Build ESP-IDF
+      shell: bash
+      if: inputs.cache-idf == 'false' || steps.restore-cached-esp-idf.outputs.cache-hit != 'true'
+      run: esp-idf/install.sh esp32,esp32c3,esp32s3
+
+    - name: Cache ESP-IDF
+      if: inputs.cache-idf == 'true' && steps.restore-cached-esp-idf.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ./esp-idf/
+          ~/.espressif/
+          !~/.espressif/dist/
+          ~/.cache/pip/
+        key: esp-idf-${{ inputs.idf-ref }}
+
+    - name: Restore cached micropython
+      if: inputs.cache-micropython == 'true'
+      uses: actions/cache/restore@v4
+      id: restore-cached-mp
+      with:
+        path: ./micropython/
+        key: micropython-${{ inputs.mp-ref }}
+
+    - name: Clone Micropython
+      if: inputs.cache-micropython == 'false' || steps.restore-cached-mp.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        repository: 'agroture/micropython'
+        ref: ${{ inputs.mp-ref }}
+        submodules: 'true'
+        path: 'micropython'
+
+    - name: Build Micropython
+      shell: bash
+      if: inputs.cache-micropython == 'false' || steps.restore-cached-mp.outputs.cache-hit != 'true'
+      run: |
+        source esp-idf/export.sh
+        make -C micropython/mpy-cross
+        make -C micropython/ports/esp32 submodules
+
+    - name: Cache micropython
+      if: inputs.cache-micropython == 'true' && steps.restore-cached-mp.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ./micropython/
+        key: micropython-${{ inputs.mp-ref }}
+
+    - name: Clone Packman
+      uses: actions/checkout@v4
+      with:
+        repository: 'agroture/packman'
+        path: 'packman'
+        token: ${{ inputs.agroture-pat }}
+
+    - name: Build Firmware
+      shell: bash
+      id: build-firmware
+      run: |
+        python3 -m pip install mpbridge cbor2 ${{ github.workspace }}/packman
+        port_dir=${{ github.workspace }}/micropython/ports/esp32
+        cd ${{ github.workspace }}
+        if [ "${{ inputs.source-dir }}" != "" ]; then
+          packman copy_project ${{ inputs.source-dir }} $port_dir/modules
+        fi
+        source esp-idf/export.sh && make -C $port_dir BOARD=${{ inputs.board }} BOARD_VARIANT=${{ inputs.board-variant }}
+        packman create_bundle $port_dir/build-${{ matrix.board }}-${{ matrix.board-variant }} ${{ inputs.output-path }}

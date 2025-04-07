@@ -23,6 +23,9 @@ inputs:
   board-variant:
     description: 'Board variant'
     required: true
+  chip-variant:
+    description: 'Chip variant'
+    required: true
   cache-idf:
     description: 'Control esp-idf cache'
     required: false
@@ -124,4 +127,4 @@ runs:
         export MICROPY_GIT_TAG=${{ inputs.mp-ref }}
         export MICROPY_GIT_HASH="$(git -C ${{ github.workspace }}/micropython rev-parse HEAD)"
         source esp-idf/export.sh && make -C $port_dir BOARD=${{ inputs.board }} BOARD_VARIANT=${{ inputs.board-variant }}
-        packman create_bundle $port_dir/build-${{ matrix.board }}-${{ matrix.board-variant }} ${{ inputs.output-path }}
+        packman create_bundle ${{ inputs.chip-variant }} $port_dir/build-${{ matrix.board }}-${{ matrix.board-variant }} ${{ inputs.output-path }}

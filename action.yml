@@ -111,6 +111,14 @@ runs:
         path: 'packman'
         token: ${{ inputs.agroture-pat }}
 
+    - name: Clone ULab
+      uses: actions/checkout@v4
+      with:
+        repository: 'v923z/micropython-ulab'
+        path: 'packman'
+        token: ${{ inputs.agroture-pat }}
+
+
     - name: Build Firmware
       shell: bash
       id: build-firmware

@@ -1,9 +1,6 @@
 name: 'Build ESP32'
 description: 'Build micropython project for esp32'
 inputs:
-  idf-ref:
-    description: 'ESP-IDF ref for build'
-    required: true
   mp-ref:
     description: 'Micropython ref for build'
     required: true
@@ -38,6 +35,13 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Get ESP-IDF version
+      id: idf-version
+      shell: bash
+      run: |
+        wget https://raw.githubusercontent.com/agroture/micropython/${{ inputs.mp-ref }}/ports/esp32/idf.ref
+        echo "ref=$(cat idf.ref)" >> $GITHUB_OUTPUT
+
     - name: Restore cached ESP-IDF
       if: inputs.cache-idf == 'true'
       id: restore-cached-esp-idf
@@ -48,14 +52,14 @@ runs:
           ~/.espressif/
           !~/.espressif/dist/
           ~/.cache/pip/
-        key: esp-idf-${{ inputs.idf-ref }}
+        key: esp-idf-${{ steps.idf-version.outputs.ref }}
 
     - name: Clone ESP-IDF
       if: inputs.cache-idf == 'false' || steps.restore-cached-esp-idf.outputs.cache-hit != 'true'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: 'espressif/esp-idf'
-        ref: ${{ inputs.idf-ref }}
+        ref: ${{ steps.idf-version.outputs.ref }}
         submodules: 'true'
         path: 'esp-idf'
 
@@ -73,7 +77,7 @@ runs:
           ~/.espressif/
           !~/.espressif/dist/
           ~/.cache/pip/
-        key: esp-idf-${{ inputs.idf-ref }}
+        key: esp-idf-${{ steps.idf-version.outputs.ref }}
 
     - name: Restore cached micropython
       if: inputs.cache-micropython == 'true'
@@ -85,7 +89,7 @@ runs:
 
     - name: Clone Micropython
       if: inputs.cache-micropython == 'false' || steps.restore-cached-mp.outputs.cache-hit != 'true'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: 'agroture/micropython'
         ref: ${{ inputs.mp-ref }}
